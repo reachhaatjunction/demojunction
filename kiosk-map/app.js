@@ -1,5 +1,39 @@
+// =============================================================================
+// MediaMap Kiosk PWA — DEMO BUILD — app.js
+//
+// This is a stripped-down build for demoing/evaluation. Compared to the
+// full kiosk app, it has been reduced to ONE thing: a read-only Leaflet
+// map renderer that loads settings.json + layer files from the bundled
+// mediamap-kiosk-data/ folder via fetch(), the same import format the
+// MediaMap Kiosk WordPress plugin's importer accepts.
+//
+// Removed entirely for this build (see DEMO-README.md for why):
+//   - The setup screen and mode tabs — there is nothing to configure.
+//   - Remote URL / iframe mode (no live WordPress site to point at).
+//   - USB folder picking (File System Access API) + the IndexedDB
+//     handle persistence that supported it — data now ships IN the
+//     PWA's own folder and is read with a normal fetch().
+//   - The domain allowlist + setup PIN security layer, which only
+//     mattered for letting someone change the live source on a real
+//     kiosk. A demo has nothing to protect, so this is just removed
+//     rather than disabled — there are no live allowlist/PIN endpoints
+//     wired into this build.
+//
+// Kept unchanged from the full app: map rendering, point clustering,
+// styled GeoJSON shapes, the media lightbox (image/video/audio/PDF/
+// street view), the idle-timer auto-reset "heartbeat", and offline
+// caching via the service worker.
+//
+// To show your own data: replace/add files in mediamap-kiosk-data/ and
+// list them in its settings.json. No code changes needed — see that
+// file's comments, or DEMO-README.md, for the format.
+// =============================================================================
+
 'use strict';
 
+// ---------------------------------------------------------------------------
+// 0. CONSTANTS + STATE
+// ---------------------------------------------------------------------------
 const DATA_DIR = './mediamap-kiosk-data/'; // bundled with the PWA, read via fetch()
 
 let lastLoadErrors   = []; // layers listed in settings.json that failed to load this boot
@@ -13,6 +47,10 @@ function handleUserActivity() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 1. DATA LOADING (fetch-based — reads the bundled mediamap-kiosk-data/ folder)
+// ---------------------------------------------------------------------------
+
 async function readJsonFile(filename) {
     const res = await fetch(DATA_DIR + filename, { cache: 'no-store' });
     if (!res.ok) {
@@ -23,12 +61,26 @@ async function readJsonFile(filename) {
     return res.json();
 }
 
+/**
+ * Resolve a media_url value to a usable src. Remote URLs and data URIs
+ * pass through untouched; a plain filename is treated as relative to
+ * the data folder (mirrors the "local file" support the full app
+ * offers in USB mode, just served over fetch() instead of the File
+ * System Access API).
+ */
 async function resolveMediaUrl(value) {
     if (!value) return '';
     if (value.startsWith('data:') || value.startsWith('http') || value.startsWith('blob:')) return value;
     return DATA_DIR + value;
 }
 
+// --- DATA NORMALIZATION MODULE ---
+// Ported from the MediaMap Kiosk plugin's MediaMap_Kiosk_Data_Normalizer
+// (PHP) / DataNormalizationModule (JS) — same accepted shapes: a plain
+// array of point objects, { data: [...] }, or GeoJSON (FeatureCollection/
+// Feature/bare geometry). Point/MultiPoint geometries become flat marker
+// points; LineString/Polygon/MultiLineString/MultiPolygon geometries are
+// kept as raw GeoJSON Features for Leaflet to render directly.
 const DataNormalizationModule = {
     process(rawInput) {
         let pointSources = [];
@@ -138,11 +190,20 @@ const DataNormalizationModule = {
     },
 };
 
+/** Reads settings.json's top-level "kiosk" block. */
 async function getKioskSettings() {
     const config = await readJsonFile('settings.json');
     return config.kiosk || { idle_time_seconds: 90, lock_bounds_to_data: false };
 }
 
+/**
+ * Loads every enabled layer listed in settings.json, normalizes each
+ * file's contents the same way the WordPress plugin's importer would,
+ * and resolves any locally-referenced point media to fetchable URLs.
+ * Shaped to match what GET /layers returns from the live plugin
+ * (groupName/active/order/shapeStyle/data/shapes), so the rendering
+ * code below (ported from the plugin's app.js) works unmodified.
+ */
 async function getAllLayers() {
     const config = await readJsonFile('settings.json');
     const entries = Array.isArray(config.layers) ? config.layers : [];
@@ -170,7 +231,7 @@ async function getAllLayers() {
                 active: true,
                 order: i,
                 shapeStyle: Object.assign({}, DEFAULT_SHAPE_STYLE, entry.shapeStyle || {}),
-                cluster: entry.cluster !== false,
+                cluster: entry.cluster !== false, // default on; "cluster": false opts a layer's pins out
                 data: resolvedPoints,
                 shapes: shapeFeatures,
             });
@@ -186,6 +247,12 @@ async function getAllLayers() {
     return layers;
 }
 
+/**
+ * Shows a small dismissible banner listing any layers from settings.json
+ * that failed to load this boot (usually a filename mismatch or invalid
+ * JSON). Without this, a missing layer is silent and very hard to
+ * self-diagnose from the kiosk screen alone.
+ */
 function renderLoadErrorBanner() {
     const existing = document.getElementById('load-error-banner');
     if (existing) existing.remove();
@@ -205,8 +272,14 @@ function renderLoadErrorBanner() {
     document.querySelector('main').prepend(banner);
 }
 
+/**
+ * Shown only if settings.json itself can't be read at all (missing,
+ * unreachable, invalid JSON) — there's no setup screen to fall back to
+ * in this build, so this reuses the existing "empty state" UI with a
+ * clearer message instead of leaving a blank map.
+ */
 function showFatalLoadError(err) {
-    initMap();
+    initMap(); // still show a basemap behind the message
     document.getElementById('map-empty-icon').textContent = 'cloud_off';
     document.getElementById('map-empty-title').textContent = "Couldn't load demo data";
     document.getElementById('map-empty-msg').textContent =
@@ -214,6 +287,11 @@ function showFatalLoadError(err) {
     document.getElementById('map-empty').style.display = 'flex';
 }
 
+// ---------------------------------------------------------------------------
+// 2. MEDIA EMBED RESOLUTION MODULE
+// ---------------------------------------------------------------------------
+// Pure string/regex logic, no DOM dependency — ported unchanged from the
+// MediaMap Kiosk plugin's app.js.
 const MediaEmbedModule = {
     resolve(type, url) {
         if (!url) return null;
@@ -264,6 +342,11 @@ const MediaEmbedModule = {
             return null;
         }
 
+        // Locally-bundled files resolved by resolveMediaUrl() are normal
+        // same-origin URLs here (not blob:/data: URIs, since there's no
+        // File System Access API in this build) — extension sniffing
+        // below already covers them. data: URIs are still recognized in
+        // case a JSON file inlines one directly.
         if (url.startsWith('blob:') || url.startsWith('data:')) {
             if (type === 'video') return { kind: 'file', src: url };
             if (type === 'audio') return { kind: 'file', src: url };
@@ -280,6 +363,219 @@ const MediaEmbedModule = {
     },
 };
 
+// ---------------------------------------------------------------------------
+// 3. PDF VIEWER MODULE (PDF.js — vendored locally, see vendor/README.md)
+// ---------------------------------------------------------------------------
+// Renders PDF points onto a <canvas> instead of embedding them via
+// <iframe src="file.pdf">. The iframe approach depends entirely on the
+// browser having its own inline PDF plugin — desktop browsers do, but
+// most mobile browsers don't reliably: Chrome on Android commonly shows
+// a download prompt instead of rendering inline, and iOS Safari is
+// inconsistent about it too. PDF.js parses + rasterizes the PDF itself,
+// so it looks identical on a kiosk, a phone, or a desktop, fully offline.
+//
+// pdfjs-dist no longer ships a plain-global/UMD script (every build is
+// an ES module as of v4+), so the library is loaded via a dynamic
+// import() the first time a PDF is actually opened — not on every
+// kiosk boot — rather than a <script> tag like the other vendored libs.
+//
+// This uses the LEGACY build specifically (vendor/pdfjs/pdf.min.mjs is
+// copied from pdfjs-dist's legacy/build/, not its main build/) — the
+// main build calls a brand-new, not-yet-broadly-supported Map method
+// with no fallback, which silently breaks rendering (blank page, no
+// visible error) on browsers that don't have it yet — including, at
+// the time this was written, a fairly recent desktop Chromium. See
+// vendor/README.md for the full explanation.
+const PdfViewerModule = (() => {
+    let pdfjsLib = null;
+    let pdfjsLoadPromise = null;
+    let pdfDoc = null;
+    let pageNum = 1;
+    let currentRenderTask = null; // the in-flight PDF.js RenderTask, if any — cancelled rather than left to race a newer one
+    let resizeHandler = null;
+    let renderToken = 0; // bumped on every open()/destroy() to invalidate any in-flight load from a previous PDF
+
+    // cancel()/destroy() are best-effort cleanup — if PDF.js's own internal
+    // bookkeeping throws on a particular browser/timing combination, that's
+    // not something the rest of the app should ever see as an error.
+    function safeCancelTask() {
+        if (currentRenderTask) {
+            try { currentRenderTask.cancel(); } catch (err) { /* ignore */ }
+            currentRenderTask = null;
+        }
+    }
+    function safeDestroyDoc(doc) {
+        if (!doc) return;
+        try {
+            const result = doc.destroy();
+            if (result && typeof result.catch === 'function') result.catch(() => {});
+        } catch (err) { /* ignore */ }
+    }
+
+    async function ensureLib() {
+        if (pdfjsLib) return pdfjsLib;
+        if (!pdfjsLoadPromise) {
+            pdfjsLoadPromise = import('./vendor/pdfjs/pdf.min.mjs').then(mod => {
+                mod.GlobalWorkerOptions.workerSrc = './vendor/pdfjs/pdf.worker.min.mjs';
+                pdfjsLib = mod;
+                return mod;
+            });
+        }
+        return pdfjsLoadPromise;
+    }
+
+    function destroy() {
+        renderToken++; // any load still in flight from the old doc becomes a no-op
+        if (resizeHandler) {
+            window.removeEventListener('resize', resizeHandler);
+            resizeHandler = null;
+        }
+        safeCancelTask();
+        if (pdfDoc) {
+            const doc = pdfDoc;
+            pdfDoc = null;
+            safeDestroyDoc(doc);
+        }
+        pageNum = 1;
+    }
+
+    /**
+     * Renders `url` into `mediaBox`. Resolves true on success, 'stale' if
+     * a newer open()/destroy() call superseded this one before it
+     * finished (caller should do nothing), or false if the file
+     * genuinely couldn't be loaded/parsed (caller shows the standard
+     * "can't be displayed" status view).
+     */
+    async function open(mediaBox, url) {
+        destroy(); // tear down whatever PDF (if any) was showing before this one
+        const myToken = renderToken;
+
+        mediaBox.innerHTML = `
+            <div class="pdf-viewer">
+                <div class="pdf-canvas-wrap">
+                    <div class="pdf-loading"><span class="pdf-spinner"></span></div>
+                    <canvas class="pdf-canvas"></canvas>
+                </div>
+                <div class="pdf-toolbar">
+                    <button type="button" class="pdf-nav-btn" data-dir="-1" aria-label="Previous page" disabled>
+                        <span class="material-icons">chevron_left</span>
+                    </button>
+                    <span class="pdf-page-indicator">– / –</span>
+                    <button type="button" class="pdf-nav-btn" data-dir="1" aria-label="Next page" disabled>
+                        <span class="material-icons">chevron_right</span>
+                    </button>
+                </div>
+            </div>`;
+
+        const canvas    = mediaBox.querySelector('.pdf-canvas');
+        const loading   = mediaBox.querySelector('.pdf-loading');
+        const indicator = mediaBox.querySelector('.pdf-page-indicator');
+        const prevBtn   = mediaBox.querySelector('.pdf-nav-btn[data-dir="-1"]');
+        const nextBtn   = mediaBox.querySelector('.pdf-nav-btn[data-dir="1"]');
+
+        let lib, doc;
+        try {
+            lib = await ensureLib();
+            if (myToken !== renderToken) return 'stale'; // a newer open()/destroy() happened while loading the library
+            doc = await lib.getDocument({
+                url,
+                // As of PDF.js v5, these resource paths are no longer bundled
+                // inline and MUST be supplied explicitly — without
+                // standardFontDataUrl specifically, any text using a non-
+                // embedded standard font (extremely common) silently fails
+                // to draw: the page renders as a blank white rectangle with
+                // no error visible to the kiosk visitor.
+                //
+                // cMapUrl is deliberately NOT set: it only covers legacy
+                // CJK (Chinese/Japanese/Korean) CID-keyed font encodings,
+                // which this archive's Indic/Latin-script content doesn't
+                // use — Indic scripts render fine via standard embedded
+                // Unicode fonts without it. Omitting it saved ~1.7MB of
+                // vendored cmap files this app would never actually need;
+                // see vendor/README.md if that ever changes.
+                //
+                // wasmUrl/iccUrl cover JBIG2 decoding (common in scanned
+                // document compression — kept) and CMYK colour conversion
+                // (kept, tiny). JPEG2000 decoding and embedded-PDF-
+                // JavaScript execution were trimmed from vendor/pdfjs/wasm/
+                // for the same reason as cmaps — see vendor/README.md.
+                standardFontDataUrl: './vendor/pdfjs/standard_fonts/',
+                wasmUrl: './vendor/pdfjs/wasm/',
+                iccUrl: './vendor/pdfjs/iccs/',
+            }).promise;
+        } catch (err) {
+            if (myToken !== renderToken) return 'stale';
+            console.warn('PDF load failed:', err);
+            return false;
+        }
+        if (myToken !== renderToken) { safeDestroyDoc(doc); return 'stale'; }
+        pdfDoc = doc; // only commit to shared state once we know this call is still the current one
+
+        indicator.textContent = `1 / ${pdfDoc.numPages}`;
+        prevBtn.addEventListener('click', () => renderPage(pageNum - 1));
+        nextBtn.addEventListener('click', () => renderPage(pageNum + 1));
+        resizeHandler = () => renderPage(pageNum); // re-fit on device rotation / window resize
+        window.addEventListener('resize', resizeHandler);
+
+        await renderPage(1);
+        if (myToken !== renderToken) return 'stale';
+        loading.remove();
+        return true;
+
+        async function renderPage(num) {
+            if (!pdfDoc || myToken !== renderToken || num < 1 || num > pdfDoc.numPages) return;
+
+            // Cancel whatever page render is still in flight before starting
+            // a new one — PDF.js doesn't allow two concurrent render() calls
+            // against the same canvas (a nav-button click and the resize
+            // handler can otherwise both try to render at once).
+            safeCancelTask();
+
+            pageNum = num;
+            indicator.textContent = `${pageNum} / ${pdfDoc.numPages}`;
+            prevBtn.disabled = pageNum <= 1;
+            nextBtn.disabled = pageNum >= pdfDoc.numPages;
+
+            const page = await pdfDoc.getPage(pageNum);
+            if (myToken !== renderToken) return;
+
+            const wrap = canvas.parentElement;
+            const unscaled = page.getViewport({ scale: 1 });
+            const fitScale = Math.max(0.1, Math.min(
+                wrap.clientWidth / unscaled.width,
+                wrap.clientHeight / unscaled.height
+            ));
+            // Cap device-pixel-ratio scaling — kiosk hardware is often
+            // lower-powered, and a 3x/4x canvas for a single PDF page is
+            // wasted work the eye won't notice on a touchscreen anyway.
+            const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+            const viewport = page.getViewport({ scale: fitScale * pixelRatio });
+
+            canvas.width  = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            canvas.style.width  = Math.round(viewport.width / pixelRatio) + 'px';
+            canvas.style.height = Math.round(viewport.height / pixelRatio) + 'px';
+
+            const ctx = canvas.getContext('2d');
+            const task = page.render({ canvasContext: ctx, viewport });
+            currentRenderTask = task;
+            try {
+                await task.promise;
+            } catch (err) {
+                if (err && err.name === 'RenderingCancelledException') return; // superseded by a newer page/resize — expected
+                console.warn('PDF page render failed:', err);
+            } finally {
+                if (currentRenderTask === task) currentRenderTask = null;
+            }
+        }
+    }
+
+    return { open, destroy };
+})();
+
+// ---------------------------------------------------------------------------
+// 4. MARKER ICON MODULE
+// ---------------------------------------------------------------------------
 const MarkerIconModule = {
     TYPES: {
         video: {
@@ -337,6 +633,11 @@ const MarkerIconModule = {
     },
 };
 
+// Cluster bubbles, styled to match the indigo kiosk theme rather than
+// leaflet.markercluster's default green/yellow/orange bullseye (we don't
+// load MarkerCluster.Default.css for that reason — see vendor/README.md).
+// Three size/shade tiers give a rough sense of cluster magnitude at a
+// glance, the same way the default theme's color tiers do.
 function buildClusterIcon(cluster) {
     const count = cluster.getChildCount();
     let tier = 'mediamap-cluster-small';
@@ -356,6 +657,9 @@ function buildClusterIcon(cluster) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// 5. MAP STATE, IDLE TIMER, HEARTBEAT
+// ---------------------------------------------------------------------------
 let map, mapLayers = {};
 let mapInitialized = false;
 
@@ -398,6 +702,8 @@ function startKioskHeartbeat() {
         }
 
         if (timeSinceLastActivity >= KIOSK_IDLE_TIME) {
+            // Reset to a clean overview for the next visitor: close any
+            // open lightbox and re-fit the map to the active layers.
             closeLightbox();
             fitMapToActiveLayers();
             lastActivityTime = Date.now();
@@ -409,6 +715,9 @@ function stopKioskHeartbeat() {
     if (idleInterval) { clearInterval(idleInterval); idleInterval = null; }
 }
 
+// ---------------------------------------------------------------------------
+// 6. MAP INITIALIZATION
+// ---------------------------------------------------------------------------
 const KIOSK_HOME_VIEW = { center: [26.1805, 91.7539], zoom: 8 };
 
 function initMap() {
@@ -425,6 +734,13 @@ function initMap() {
     initMapResizeHandling();
 }
 
+// Leaflet measures its container once on creation and then caches that
+// size; it never re-measures on its own. A device rotation or the
+// mobile browser chrome showing/hiding (resizing the dynamic viewport)
+// leaves Leaflet's cached size stale, so tiles/markers only occupy the
+// old box until something forces a recalculation. A ResizeObserver on
+// the map container, plus listening for visualViewport resizes, covers
+// both cases so the map always settles back to the right size on its own.
 function initMapResizeHandling() {
     const mapEl = document.getElementById('map');
 
@@ -442,6 +758,11 @@ function initMapResizeHandling() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 7. LAYER RENDERING (ported from the MediaMap Kiosk plugin's app.js;
+//    point clustering added on top via the vendored leaflet.markercluster
+//    plugin — see vendor/README.md)
+// ---------------------------------------------------------------------------
 function renderLayerOnMap(layer) {
     const groupName = layer.groupName;
     if (mapLayers[groupName]) {
@@ -451,12 +772,17 @@ function renderLayerOnMap(layer) {
     const layerGroup = L.featureGroup();
     const points = layer.data || [];
 
+    // Clustering only makes sense for point pins — shapes (lines/polygons,
+    // handled further below) are added straight to layerGroup and never
+    // pass through this group. A layer can opt out via "cluster": false
+    // in settings.json (e.g. a small, important set of pins you always
+    // want individually visible rather than collapsing into a bubble).
     const pointsTarget = (layer.cluster !== false)
         ? L.markerClusterGroup({
-            showCoverageOnHover: false,
+            showCoverageOnHover: false, // kiosk is touch-driven; hover footprints don't apply
             zoomToBoundsOnClick: true,
-            spiderfyOnMaxZoom: true,
-            chunkedLoading: true,
+            spiderfyOnMaxZoom: true,    // un-stacks pins still overlapping at max zoom
+            chunkedLoading: true,       // keeps large point layers from blocking the UI thread
             maxClusterRadius: 60,
             iconCreateFunction: buildClusterIcon,
         })
@@ -536,6 +862,7 @@ function findLargestShapeCenter(geoJsonLayer) {
         const combined = geoJsonLayer.getBounds();
         if (combined && combined.isValid()) return combined.getCenter();
     } catch (e) {
+        // no measurable content at all
     }
     return null;
 }
@@ -558,6 +885,9 @@ function redrawActiveLayersInOrder(layers) {
     fitMapToActiveLayers();
 }
 
+// ---------------------------------------------------------------------------
+// 8. BOUNDS FIT / LOCK
+// ---------------------------------------------------------------------------
 let kioskLockBoundsToData = false;
 
 function setLockBoundsToData(enabled) {
@@ -602,6 +932,9 @@ function fitMapToActiveLayers() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 9. LIGHTBOX
+// ---------------------------------------------------------------------------
 function escHtml(str) {
     return String(str)
         .replace(/&/g, '&amp;')
@@ -634,7 +967,10 @@ function openLightbox(item) {
     document.getElementById('lightbox-type').textContent = MarkerIconModule.labelFor(item.media_type);
 
     mediaBox.innerHTML = '';
+    // Reset from any previous text-only or PDF point — re-added below when needed.
     wrapper.classList.remove('no-media');
+    wrapper.classList.remove('pdf-media');
+    PdfViewerModule.destroy(); // free any previous PDF doc — markers can be tapped one after another without closing the lightbox in between
 
     if (item.media_type === 'video') {
         const embed = MediaEmbedModule.resolve('video', item.media_url);
@@ -665,11 +1001,24 @@ function openLightbox(item) {
         if (!embed) {
             renderMediaStatus(mediaBox, 'picture_as_pdf', 'This PDF can\u2019t be displayed in the kiosk.', item.media_url, true);
         } else {
-            mediaBox.innerHTML = `
-                <iframe src="${escHtml(embed.src)}" frameborder="0" style="border:0;background:#fff;"></iframe>
-                <a class="media-open-new-tab" href="${escHtml(embed.src)}" target="_blank" rel="noopener" title="Open full PDF in a new tab">
-                    <span class="material-icons">open_in_new</span>
-                </a>`;
+            wrapper.classList.add('pdf-media'); // gives the PDF more vertical room than the 16:9 video/image box
+            const pdfUrl = embed.src;
+            PdfViewerModule.open(mediaBox, pdfUrl).then(result => {
+                if (result === 'stale') return; // a newer item replaced this one before the load finished
+                if (!result) {
+                    wrapper.classList.remove('pdf-media');
+                    renderMediaStatus(mediaBox, 'picture_as_pdf', 'This PDF can\u2019t be displayed in the kiosk.', pdfUrl, true);
+                    return;
+                }
+                const openBtn = document.createElement('a');
+                openBtn.className = 'media-open-new-tab';
+                openBtn.href = pdfUrl;
+                openBtn.target = '_blank';
+                openBtn.rel = 'noopener';
+                openBtn.title = 'Open full PDF in a new tab';
+                openBtn.innerHTML = '<span class="material-icons">open_in_new</span>';
+                mediaBox.appendChild(openBtn);
+            });
         }
     } else if (item.media_type === 'streetview') {
         const embed = MediaEmbedModule.resolve('streetview', item.media_url);
@@ -679,6 +1028,8 @@ function openLightbox(item) {
             mediaBox.innerHTML = `<iframe src="${escHtml(embed.src)}" frameborder="0" style="border:0" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
         }
     } else {
+        // Text-only point — no media to show, so collapse the media box
+        // entirely rather than rendering an empty placeholder area.
         wrapper.classList.add('no-media');
     }
 
@@ -699,6 +1050,8 @@ function closeLightbox() {
     wrapper.classList.add('mm-scale-95');
     setTimeout(() => {
         container.classList.add('mm-hidden');
+        PdfViewerModule.destroy();
+        wrapper.classList.remove('pdf-media');
         document.getElementById('lightbox-media').innerHTML = '';
     }, 300);
 }
@@ -708,6 +1061,9 @@ document.getElementById('lightbox').addEventListener('click', (e) => {
     if (e.target === document.getElementById('lightbox')) closeLightbox();
 });
 
+// ---------------------------------------------------------------------------
+// 10. ACTIVITY CAPTURE (drives the idle-timer heartbeat)
+// ---------------------------------------------------------------------------
 ['click', 'keydown', 'mousedown', 'touchstart', 'touchmove'].forEach(ev =>
     window.addEventListener(ev, handleUserActivity, { passive: true, capture: true })
 );
@@ -719,6 +1075,9 @@ window.addEventListener('mousemove', () => {
     }, 200);
 }, { passive: true, capture: true });
 
+// ---------------------------------------------------------------------------
+// 11. SERVICE WORKER + BOOT
+// ---------------------------------------------------------------------------
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(err =>
         console.warn('SW registration failed:', err)

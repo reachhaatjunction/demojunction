@@ -1,3 +1,14 @@
+/* ==========================================================================
+   MediaMap Kiosk PWA — DEMO BUILD — Stylesheet
+   Standalone (no WordPress, no Tailwind). Applies globally to <body>.
+
+   Trimmed from the full app's kiosk.css: the setup screen, mode tabs,
+   PIN-gate overlay, "change source" button, iframe screen, and
+   disconnect-warning banner styles have all been removed along with
+   their matching markup/JS — this build only ever shows one screen
+   (the map), so #kiosk-root is visible by default instead of being
+   toggled in via a ".visible" class.
+   ========================================================================== */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -14,12 +25,14 @@ html, body {
     touch-action: pan-x pan-y;
 }
 
+/* ---- Kiosk root ---- */
 #kiosk-root {
     display: flex;
     flex-direction: column;
     height: 100%;
 }
 
+/* ---- Header ---- */
 header {
     background: #4f46e5;
     color: #ffffff;
@@ -60,6 +73,7 @@ header {
     margin: 0;
 }
 
+/* ---- Demo badge ---- */
 .demo-badge {
     font-size: 0.68rem;
     font-weight: 800;
@@ -70,6 +84,7 @@ header {
     border-radius: 999px;
 }
 
+/* ---- Main / map container ---- */
 main {
     flex: 1;
     position: relative;
@@ -98,6 +113,7 @@ main {
 #map-empty h2 { margin: 0; font-size: 1.1rem; color: #475569; }
 #map-empty p { margin: 0; font-size: 0.85rem; max-width: 320px; }
 
+/* ---- Load-error banner (dismissible, shown over the map) ---- */
 #load-error-banner {
     position: absolute;
     top: 16px;
@@ -128,6 +144,10 @@ main {
     flex: none;
 }
 
+/* ==========================================================================
+   Map markers — media type pins (ported from the MediaMap Kiosk plugin)
+   ========================================================================== */
+
 .mediamap-marker-icon {
     background: transparent;
     border: none;
@@ -143,6 +163,13 @@ main {
     transform: translateY(-2px) scale(1.05);
 }
 
+/* ---- Marker clusters (leaflet.markercluster) ----
+   Themed to match the kiosk's indigo branding instead of the plugin's
+   default green/yellow/orange tiers; see MarkerIconModule's sibling
+   buildClusterIcon() in app.js and the note in vendor/README.md about
+   why MarkerCluster.Default.css isn't loaded. Three shades of indigo,
+   growing with bubble size, give the same "how big is this cluster"
+   read at a glance that the default colors gave. */
 .mediamap-cluster-icon {
     background: transparent;
     border: none;
@@ -168,17 +195,17 @@ main {
 }
 
 .mediamap-cluster-small .mediamap-cluster-inner {
-    background: rgba(99, 102, 241, 0.85);
+    background: rgba(99, 102, 241, 0.85);  /* indigo-500 */
     font-size: 13px;
 }
 
 .mediamap-cluster-medium .mediamap-cluster-inner {
-    background: rgba(79, 70, 229, 0.88);
+    background: rgba(79, 70, 229, 0.88);  /* indigo-600 — kiosk accent color */
     font-size: 14px;
 }
 
 .mediamap-cluster-large .mediamap-cluster-inner {
-    background: rgba(55, 48, 163, 0.92);
+    background: rgba(55, 48, 163, 0.92);  /* indigo-800 */
     font-size: 15px;
 }
 
@@ -212,6 +239,10 @@ main {
     transform: translate(-50%, -50%);
     pointer-events: none;
 }
+
+/* ==========================================================================
+   Lightbox
+   ========================================================================== */
 
 .mm-hidden { display: none !important; }
 .mm-opacity-0 { opacity: 0; }
@@ -262,6 +293,11 @@ main {
     background: #fff;
     width: 100%;
     aspect-ratio: 16 / 9;
+    /* Hard cap so a tall/portrait image (or a short PC viewport) can never
+       eat into the space the info panel below needs. Without this, a
+       portrait image's intrinsic ratio can override the 16:9 box (a known
+       flexbox + aspect-ratio + percentage-sized-child quirk) and grow the
+       media box tall enough to push lightbox-body out of view. */
     max-height: 55vh;
     min-height: 0;
     display: flex;
@@ -289,6 +325,8 @@ main {
 }
 
 #lightbox-media img {
+    /* max-* (not width/height:100%) so the image is bounded by the box
+       instead of forcing the box to grow to the image's own aspect ratio. */
     max-width: 100%;
     max-height: 100%;
     width: auto;
@@ -296,8 +334,102 @@ main {
     object-fit: contain;
 }
 
+/* Text-only points have no media to show — collapse the box entirely
+   instead of leaving an empty black placeholder above the info panel. */
 .lightbox-card.no-media #lightbox-media {
     display: none;
+}
+
+/* PDFs get noticeably more vertical room than the 16:9 video/image box —
+   a document page squeezed into that box is too small to actually read. */
+.lightbox-card.pdf-media #lightbox-media {
+    aspect-ratio: auto;
+    height: 70vh;
+    max-height: 70vh;
+}
+
+.pdf-viewer {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #525659; /* neutral tone behind the page, like most native PDF viewers */
+}
+
+.pdf-canvas-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.pdf-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    background: #ffffff;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.35);
+}
+
+.pdf-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pdf-spinner {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.25);
+    border-top-color: #ffffff;
+    animation: pdf-spin 0.8s linear infinite;
+}
+
+@keyframes pdf-spin {
+    to { transform: rotate(360deg); }
+}
+
+.pdf-toolbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 8px;
+    background: #3c3f41;
+}
+
+.pdf-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.pdf-nav-btn:hover { background: rgba(255,255,255,0.18); }
+.pdf-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.pdf-nav-btn:disabled:hover { background: rgba(255,255,255,0.1); }
+.pdf-nav-btn .material-icons { font-size: 22px; }
+
+.pdf-page-indicator {
+    color: #e2e8f0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    min-width: 64px;
+    text-align: center;
 }
 
 .media-open-new-tab {
@@ -317,9 +449,18 @@ main {
 .media-open-new-tab:hover { background: rgba(15,23,42,0.85); }
 .media-open-new-tab .material-icons { font-size: 18px; }
 
+/* The PDF toolbar already occupies the bottom edge — keep the
+   open-in-new-tab button clear of it by anchoring to the top instead. */
+.pdf-media .media-open-new-tab {
+    bottom: auto;
+    top: 10px;
+}
+
 .lightbox-body {
     padding: 22px 24px;
     overflow-y: auto;
+    /* Always claim the remaining space in the card and never get squeezed
+       to nothing by the media box above it. */
     flex: 1 1 auto;
     min-height: 0;
 }

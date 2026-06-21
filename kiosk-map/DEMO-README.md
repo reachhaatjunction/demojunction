@@ -19,14 +19,26 @@ picker — using the sample data already bundled in `mediamap-kiosk-data/`.
 
 **Kept, unchanged:**
 - Leaflet map rendering, point clustering, styled GeoJSON shapes.
-- The media lightbox (image / video / audio / PDF / Street View / embeds
+- The media lightbox (image / video / audio / Street View / embeds
   from YouTube, Vimeo, Spotify, SoundCloud, etc.).
 - The idle-timer "heartbeat" that auto-resets to the overview after a
   period of inactivity (set to 25s in this build — short on purpose so
   the reset behavior is easy to see in a quick demo; the full app
   defaults to 90s).
 - Offline support via the service worker — once loaded, the demo keeps
-  working with no network connection at all.
+  working with no network connection at all, including PDFs (see below).
+
+**Changed — PDF rendering:**
+The original app embedded PDF points via `<iframe src="file.pdf">`,
+which depends on the browser's own PDF plugin — most mobile browsers
+(Chrome on Android especially, and inconsistently on iOS Safari) don't
+reliably render that inline; they show a blank box or force a download.
+This build instead renders PDFs onto a `<canvas>` using Mozilla's
+PDF.js, vendored locally (~2.9MB — see `vendor/README.md` for what's
+included and what was deliberately trimmed out), with page-by-page
+navigation in the lightbox. Tap the sample "Visitor Guide (PDF)" point
+near Kaziranga to see it. Works fully offline once cached, on desktop,
+Android, and iOS alike.
 
 **Tuned for demo purposes:**
 - `idle_time_seconds` lowered from 90 → 25 in `settings.json`.
@@ -49,7 +61,9 @@ No code changes needed. Everything lives in `mediamap-kiosk-data/`:
    `"cluster": false` (to stop a layer's pins from clustering).
 3. If a point's `media_url` is a plain filename (not `http…` or
    `data:`), it's resolved relative to `mediamap-kiosk-data/` — drop the
-   referenced image/audio/video/PDF file in alongside it.
+   referenced image/audio/video/PDF file in alongside it. For
+   `"media_type": "pdf"`, that's all that's needed — no other config;
+   see the bundled `kaziranga-visitor-guide.pdf` point for an example.
 4. **If the service worker has already cached the old data**, add your
    new filenames to the `APP_SHELL` list in `sw.js` and bump
    `CACHE_NAME`, otherwise visitors who already loaded the demo once
@@ -85,10 +99,44 @@ the `setMaxBounds`/`setMinZoom` calls to the map's `moveend` event) —
 worth a dedicated look since it touches logic shared with the live
 kiosk.
 
+## ⚠️ A second bug found while testing — pdfjs-dist build matters a lot
+
+While building the PDF viewer, the **main** (non-legacy) build of
+`pdfjs-dist` 5.7.284/6.0.227 silently failed to render any text at
+all — every PDF came out as a blank white page, with the only clue
+being a console error (`getOrInsertComputed is not a function`) buried
+inside `WorkerTransport.getOptionalContentConfig`.
+
+Root cause: that build calls `Map.prototype.getOrInsertComputed()` —
+a brand-new JavaScript Map method that's still a TC39 proposal, not a
+finished/broadly-shipped standard — with no fallback if it's missing.
+It threw on a fairly recent desktop Chromium (141) in testing, so this
+isn't just an old-browser/old-device problem; it can break on
+present-day browsers too, silently, with the page just looking empty.
+
+The fix was switching to the **legacy** build
+(`pdfjs-dist/legacy/build/...`), which includes a polyfill for this
+and renders correctly everywhere tested. If you ever bump the vendored
+PDF.js version, re-confirm you're still pulling from `legacy/build/`,
+not `build/` — see `vendor/README.md`'s update instructions, which
+call this out explicitly now.
+
+Separately: PDF.js v5+ also requires `standardFontDataUrl` to be
+passed explicitly to `getDocument()`, or text using any non-embedded
+standard font silently fails to draw the same way. Both of these fail
+*silently* — no error dialog, no console warning a developer would
+necessarily notice, just a blank page — which is exactly the kind of
+bug that's easy to ship and only discover when a real visitor taps a
+real PDF on a real kiosk. Worth being aware of if you ever touch this
+code path.
+
 ## Files of note
 
 - `index.html` / `app.js` / `kiosk.css` — the trimmed-down app shell.
-- `mediamap-kiosk-data/` — the swappable demo data + `settings.json`.
+- `mediamap-kiosk-data/` — the swappable demo data + `settings.json`,
+  including the sample `kaziranga-visitor-guide.pdf`.
+- `vendor/pdfjs/` — the in-app PDF renderer; see `vendor/README.md`
+  before ever updating its version.
 - `sw.js` — offline caching; see step 4 above if you replace the data.
 - `manifest.json` — PWA install metadata, labeled "(Demo)" so it's
   distinguishable from the full app if both are ever installed

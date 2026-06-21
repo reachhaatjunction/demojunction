@@ -8,7 +8,7 @@
 // CACHE_NAME so the service worker picks up the change instead of
 // serving a stale cached copy.
 
-const CACHE_NAME = 'mediamap-kiosk-demo-v1';
+const CACHE_NAME = 'mediamap-kiosk-demo-v4'; // v4: trimmed pdfjs footprint — dropped cmaps/openjpeg/quickjs-eval (see vendor/README.md)
 
 const APP_SHELL = [
     './',
@@ -29,10 +29,34 @@ const APP_SHELL = [
     './vendor/leaflet/images/layers-2x.png',
     './vendor/leaflet.markercluster/MarkerCluster.css',
     './vendor/leaflet.markercluster/leaflet.markercluster.js',
+    './vendor/pdfjs/pdf.min.mjs',
+    './vendor/pdfjs/pdf.worker.min.mjs',
+    './vendor/pdfjs/standard_fonts/FoxitDingbats.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitFixed.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitFixedBold.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitFixedBoldItalic.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitFixedItalic.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitSerif.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitSerifBold.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitSerifBoldItalic.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitSerifItalic.pfb',
+    './vendor/pdfjs/standard_fonts/FoxitSymbol.pfb',
+    './vendor/pdfjs/standard_fonts/LiberationSans-Bold.ttf',
+    './vendor/pdfjs/standard_fonts/LiberationSans-BoldItalic.ttf',
+    './vendor/pdfjs/standard_fonts/LiberationSans-Italic.ttf',
+    './vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf',
+    './vendor/pdfjs/wasm/jbig2.wasm',
+    './vendor/pdfjs/wasm/jbig2_nowasm_fallback.js',
+    './vendor/pdfjs/wasm/qcms_bg.wasm',
+    './vendor/pdfjs/iccs/CGATS001Compat-v2-micro.icc',
+    // vendor/pdfjs/cmaps/, vendor/pdfjs/wasm/openjpeg*, and
+    // vendor/pdfjs/wasm/quickjs-eval* are deliberately NOT vendored at
+    // all (not just left uncached) — see vendor/README.md for why.
     './mediamap-kiosk-data/settings.json',
     './mediamap-kiosk-data/iitg_campus.geojson',
     './mediamap-kiosk-data/kaziranga_area.geojson',
     './mediamap-kiosk-data/assam_points_demo.geojson',
+    './mediamap-kiosk-data/kaziranga-visitor-guide.pdf',
 ];
 
 self.addEventListener('install', event => {

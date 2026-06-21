@@ -20,6 +20,17 @@
 </head>
 <body>
 
+<!-- =====================================================================
+     DEMO BUILD
+     This is a stripped-down build of the MediaMap Kiosk PWA for
+     demoing/evaluation. It has no setup screen, no Remote URL / iframe
+     mode, and no source-switching UI — it boots straight into the
+     read-only map renderer below using whatever is in
+     mediamap-kiosk-data/. To show your own data, replace the files in
+     that folder (see DEMO-README.md). The full kiosk app additionally
+     supports a Remote URL mode and an on-device "change source" flow
+     with domain allowlisting + PIN protection.
+     ===================================================================== -->
 <div id="kiosk-root">
 
   <header>
@@ -44,6 +55,7 @@
     </div>
   </main>
 
+  <!-- Lightbox: shown on marker click -->
   <div id="lightbox" class="mm-hidden mm-opacity-0">
     <button id="close-lightbox" aria-label="Close">
       <span class="material-icons">close</span>
