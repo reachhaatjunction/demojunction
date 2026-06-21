@@ -1,0 +1,12 @@
+# Apache (and USBWebserver's bundled Apache) does not map the .mjs
+# extension to a JavaScript MIME type by default. Browsers enforce
+# strict MIME checking for ES module <script type="module"> / dynamic
+# import() — an empty or wrong Content-Type causes:
+#   "Failed to load module script: Expected a JavaScript-or-Wasm
+#    module script but the server responded with a MIME type of ''"
+# This forces the correct type so vendor/pdfjs/*.mjs load as modules.
+AddType text/javascript .mjs
+
+# Also make sure .wasm is served correctly — PDF.js uses WASM for
+# JBIG2 decoding (scanned-document compression).
+AddType application/wasm .wasm

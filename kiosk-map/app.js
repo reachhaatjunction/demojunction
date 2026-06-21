@@ -541,10 +541,11 @@ const PdfViewerModule = (() => {
 
             const wrap = canvas.parentElement;
             const unscaled = page.getViewport({ scale: 1 });
-            const fitScale = Math.max(0.1, Math.min(
-                wrap.clientWidth / unscaled.width,
-                wrap.clientHeight / unscaled.height
-            ));
+            // Fit-to-width: scale purely off the wrapper's width so the page
+            // fills the horizontal space edge-to-edge. The canvas/wrapper may
+            // then be taller than the viewport — that's expected, the
+            // .pdf-canvas-wrap should scroll vertically (see kiosk.css).
+            const fitScale = Math.max(0.1, wrap.clientWidth / unscaled.width);
             // Cap device-pixel-ratio scaling — kiosk hardware is often
             // lower-powered, and a 3x/4x canvas for a single PDF page is
             // wasted work the eye won't notice on a touchscreen anyway.
