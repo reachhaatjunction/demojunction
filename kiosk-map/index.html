@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>MediaMap Kiosk — Demo</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <!-- Vendored locally (not loaded from a CDN) so the kiosk works with
+       zero network connectivity once installed — see vendor/README.md. -->
+  <link rel="stylesheet" href="vendor/material-icons/material-icons.css">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">
+  <link rel="stylesheet" href="kiosk.css">
+</head>
+<body>
+
+<div id="kiosk-root">
+
+  <header>
+    <div class="header-inner">
+      <div class="header-logo">
+        <span class="material-icons">map</span>
+        <div class="header-title">
+          <h1>MediaMap</h1>
+          <p>Kiosk</p>
+        </div>
+      </div>
+      <span class="demo-badge">DEMO</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="map"></div>
+    <div id="map-empty" style="display:none;">
+      <span class="material-icons" id="map-empty-icon">layers_clear</span>
+      <h2 id="map-empty-title">No layers to show</h2>
+      <p id="map-empty-msg">No active layers were found in the data source.</p>
+    </div>
+  </main>
+
+  <div id="lightbox" class="mm-hidden mm-opacity-0">
+    <button id="close-lightbox" aria-label="Close">
+      <span class="material-icons">close</span>
+    </button>
+    <div class="lightbox-card mm-scale-95" id="lightbox-content-wrapper">
+      <div id="lightbox-media"></div>
+      <div class="lightbox-body">
+        <div class="lightbox-body-top">
+          <div>
+            <h3 id="lightbox-title">Place Name</h3>
+            <p id="lightbox-coords">Lat, Lng</p>
+          </div>
+          <div class="lightbox-badges">
+            <span id="lightbox-countdown" class="badge badge-amber">
+              <span class="material-icons">timer</span>
+              <span>Auto-closes in --s</span>
+            </span>
+            <span id="lightbox-type" class="badge badge-indigo">Type</span>
+          </div>
+        </div>
+        <hr>
+        <p id="lightbox-desc">Description goes here…</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet.markercluster/leaflet.markercluster.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
