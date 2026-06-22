@@ -1,0 +1,39 @@
+/* Material Icons — vendored locally so the kiosk's icon glyphs render
+ * correctly even when set up for the very first time with no network
+ * connection (previously loaded from fonts.googleapis.com, which made
+ * every icon in the app show as literal fallback text — "menu_book",
+ * "translate", etc. — on a true offline first boot). Unlike the
+ * sibling MediaMap Kiosk PWA, this app has no other hard CDN
+ * dependency (no Leaflet equivalent), so this is the one piece needed
+ * for USB mode to look right, not just work, on a from-scratch offline
+ * setup.
+ *
+ * Trimmed to just the classic "Filled" style, the only one this app
+ * uses. Sourced from the "material-icons" npm package (a self-hosted
+ * distribution of Google's Material Icons under the Apache 2.0
+ * license): https://www.npmjs.com/package/material-icons
+ */
+@font-face {
+  font-family: "Material Icons";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./material-icons.woff2") format("woff2");
+}
+.material-icons {
+  font-family: "Material Icons";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga";
+}
