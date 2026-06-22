@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#3d2c1f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>LexiPic Kiosk — Demo</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor/material-icons/material-icons.css">
+  <link rel="stylesheet" href="kiosk.css">
+</head>
+<body>
+
+<div id="kiosk-root">
+
+  <header>
+    <div class="header-inner">
+      <div class="header-logo">
+        <span class="material-icons">auto_stories</span>
+        <div class="header-title">
+          <h1>LexiPic</h1>
+          <p>Heritage Archive</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button id="back-to-sets-btn" style="display:none;">
+          <span class="material-icons">arrow_back</span> All Sets
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Sets grid -->
+    <section id="screen-sets">
+      <div class="sets-grid" id="sets-grid"></div>
+      <div id="sets-empty">
+        <span class="material-icons">menu_book</span>
+        <h2>No sets available</h2>
+        <p id="sets-empty-msg">No active word sets were found in the data folder.</p>
+      </div>
+    </section>
+
+    <!-- Archive / card slider -->
+    <section id="screen-archive">
+      <div class="archive-header">
+        <div>
+          <h2 id="archive-set-title"><span class="material-icons">menu_book</span><span id="archive-set-title-text">Set name</span></h2>
+          <p id="archive-set-meta">Language · 0 words</p>
+        </div>
+        <div id="archive-progress"></div>
+      </div>
+      <div class="lp-slider-wrapper">
+        <button id="lp-prev-btn" class="lp-nav-btn lp-prev" type="button" aria-label="Previous">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <div id="lp-archive-slider" class="lp-slider-container" role="list" aria-label="Word archive"></div>
+        <button id="lp-next-btn" class="lp-nav-btn lp-next" type="button" aria-label="Next">
+          <span class="material-icons">chevron_right</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
