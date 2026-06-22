@@ -1,0 +1,32 @@
+{
+  "layers": [
+    {
+      "slug": "bm-dom-animal",
+      "name": "Domestic Animals",
+      "enabled": true,
+      "group": "Livestock"
+    },
+    {
+      "slug": "bm-fish",
+      "name": "Fishes",
+      "enabled": true,
+      "group": "Food Habit"
+    },
+    {
+      "slug": "bm-fruits",
+      "name": "Fruits",
+      "enabled": true,
+      "group": "Food Habit"
+    },
+	{
+      "slug": "bm-vegetable",
+      "name": "vegetables",
+      "enabled": true,
+      "group": "Food Habit"
+    }
+  ],
+  "kiosk": {
+    "idle_time_seconds": 30,
+    "autoplay_audio": false
+  }
+}
