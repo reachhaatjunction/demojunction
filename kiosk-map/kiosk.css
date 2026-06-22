@@ -541,3 +541,30 @@ main {
     font-size: 0.75rem;
     margin-top: 0.25rem;
 }
+
+/* ==========================================================================
+   Right-click / long-press suppression
+   Prevents the browser context menu from appearing on any interactive or
+   media surface — map tiles, marker icons, lightbox images, video, audio,
+   PDF canvas, and iframes. The JS layer (see "RIGHT-CLICK & LONG-PRESS
+   SUPPRESSION" in app.js) handles the contextmenu event and the touch
+   long-press timer; these CSS rules are the complementary visual-side
+   lockdown that stops the OS-level callout sheet on mobile WebKit/Blink.
+   ========================================================================== */
+
+/* Block the iOS/Android "save image / copy link" callout sheet on all
+   media and interactive elements. Applied broadly so new media types
+   added later are covered automatically. */
+img, video, audio, canvas, iframe,
+#map, .leaflet-container, .leaflet-tile,
+.leaflet-marker-icon, .leaflet-marker-shadow,
+#lightbox, #lightbox-media,
+.pdf-canvas, .pdf-canvas-wrap {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    /* Prevent drag-start on images/videos (which can also trigger the
+       browser context menu on desktop). */
+    -webkit-user-drag: none;
+    user-drag: none;
+}
